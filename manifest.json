@@ -1,12 +1,12 @@
 {
-  "name": "PSYTECH — Psychotechnique AdlA",
+  "name": "PSYTECH — Psychotechnique AdlAB",
   "short_name": "PSYTECH",
-  "description": "Entraînement aux tests psychotechniques de l'Armée de l'Air française — Sous-officier & Pilote",
+  "description": "Entraînement aux tests psychotechniques de l'Armée de l'Air du Bénin — Sous-officier & Pilote",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#080b12",
-  "theme_color": "#0ea5e9",
+  "background_color": "#0d1b35",
+  "theme_color": "#0d1b35",
   "lang": "fr",
   "categories": ["education", "military", "training"],
   "icons": [
