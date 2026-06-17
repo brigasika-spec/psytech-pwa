@@ -653,26 +653,13 @@ kbd { background:var(--bg); border:1px solid var(--border); padding:1px 5px; bor
       </div>
     </div>
 
-    <!-- Mode tabs -->
-    <div class="mode-tabs">
-      <div class="mode-tab active" id="tab-static" onclick="setMode('static')">
-        <div class="mt-icon">📚</div>
-        <div class="mt-label">Banque statique</div>
-      </div>
-      <div class="mode-tab" id="tab-ai" onclick="setMode('ai')">
-        <div class="mt-icon">🤖</div>
-        <div class="mt-label">IA générative</div>
-      </div>
-    </div>
-
-    <!-- AI config -->
-    <div class="ai-config" id="ai-config">
-      <label>Clé API Anthropic</label>
-      <input type="password" id="ai-key" placeholder="sk-ant-…" oninput="saveKey(this.value)">
-      <p>Sans clé : questions de la banque statique. Avec clé : génération illimitée en temps réel.</p>
+    <!-- Bandeau génération infinie -->
+    <div class="ai-config" id="ai-config" style="display:block">
+      <label>⚡ Génération illimitée — sans connexion</label>
+      <p style="margin-top:0">Calcul, Spatial, Mémoire et Instruments sont générés à la volée à partir de modèles paramétrés (valeurs, suites, caps, conversions aléatoires) — jamais deux fois la même question. Logique et Vocabulaire piochent dans une large banque rédigée, remélangée à chaque session.</p>
       <div class="ai-status">
-        <div class="ai-led" id="ai-led"></div>
-        <span id="ai-st">Clé non configurée</span>
+        <div class="ai-led ok"></div>
+        <span>Tous les modules sont actifs — fonctionne 100% hors ligne</span>
       </div>
     </div>
 
@@ -745,7 +732,7 @@ kbd { background:var(--bg); border:1px solid var(--border); padding:1px 5px; bor
         <span class="q-badge q-badge-diff-easy" id="q-diff-badge">SOUS-OFFICIER</span>
         <span class="q-badge q-badge-cat" id="q-cat-badge">LOGIQUE</span>
         <span class="q-badge q-badge-ai" id="q-ai-badge" style="display:none">
-          <div class="ai-dot-anim"></div>IA
+          <div class="ai-dot-anim"></div>GÉNÉRÉ
         </span>
       </div>
       <div class="q-text" id="q-text"></div>
@@ -839,12 +826,28 @@ kbd { background:var(--bg); border:1px solid var(--border); padding:1px 5px; bor
 </div>
 
 <script>
-// ─── BANQUE ───────────────────────────────────────────────────────────
+// ─── BANQUE & GÉNÉRATEURS ────────────────────────────────────────────
 const CAT_COLORS={logique:'#2563eb',calcul:'#d97706',memoire:'#16a34a',spatial:'#dc2626',vocabulaire:'#7c3aed',instrument:'#0891b2'};
 const CAT_BG    ={logique:'#eff6ff',calcul:'#fffbeb',memoire:'#f0fdf4',spatial:'#fef2f2',vocabulaire:'#f3e8ff',instrument:'#ecfeff'};
 const CAT_ICONS ={logique:'🧠',calcul:'∑',memoire:'◉',spatial:'⬡',vocabulaire:'Ω',instrument:'✈'};
 const CAT_DESCS ={logique:'Séries, analogies, syllogismes',calcul:'Vitesse, %, conversions aéro',memoire:'Séquences, attention, intrus',spatial:'Caps, rotations, cubes 3D',vocabulaire:'Synonymes, antonymes, jargon',instrument:'Altimètre, ADI, ILS, RMI'};
+// Catégories à génération infinie (calculées) vs banque fixe (rédigées)
+const CAT_IS_GEN={logique:false,calcul:true,memoire:true,spatial:true,vocabulaire:false,instrument:true};
 
+// ─── HELPERS GÉNÉRATEURS ────────────────────────────────────────────
+function rnd(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
+function shuffle(arr){return [...arr].sort(()=>Math.random()-0.5);}
+function buildOpts(correct,distractors){
+  const uniq=[...new Set([correct,...distractors])];
+  while(uniq.length<4) uniq.push(correct+'·'+uniq.length); // garde-fou anti-doublon
+  const all=shuffle(uniq.slice(0,4));
+  return { opts:all.map(String), a:all.indexOf(correct) };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  BANQUE STATIQUE — LOGIQUE & VOCABULAIRE (rédaction humaine)
+// ═══════════════════════════════════════════════════════════════════
 const BANKS={
 logique:{label:'Logique',
  facile:[
@@ -858,6 +861,21 @@ logique:{label:'Logique',
   {t:"Tous les militaires sont disciplinés. Marc est militaire. Donc Marc est ?",opts:["Intelligent","Discipliné","Courageux","Officier"],a:1,e:"Syllogisme direct."},
   {t:"Suite : 5, 10, 20, 40, ?",opts:["60","70","80","100"],a:2,e:"×2 à chaque terme."},
   {t:"La sphère est au cercle ce que le cube est à ?",opts:["Triangle","Carré","Cylindre","Cône"],a:1,e:"Le cube est la version 3D du carré."},
+  {t:"Suite : 7, 14, 21, 28, ?",opts:["32","35","38","42"],a:1,e:"Multiples de 7 : 28+7=35."},
+  {t:"Suite : 1, 3, 6, 10, 15, ?",opts:["18","21","20","19"],a:1,e:"Nombres triangulaires : +2,+3,+4,+5,+6 → 15+6=21."},
+  {t:"MARTEAU est à CLOU ce que TOURNEVIS est à ?",opts:["Bois","Vis","Outil","Métal"],a:1,e:"Chaque outil correspond à sa pièce à manipuler."},
+  {t:"Suite : Z, X, V, T, ?",opts:["S","R","Q","P"],a:1,e:"Lettres en ordre décroissant de 2 en 2 : T(20e)→R(18e)."},
+  {t:"Tous les oiseaux ont des plumes. Le pingouin est un oiseau. Donc le pingouin ?",opts:["Vole","A des plumes","Nage","Pond des œufs uniquement"],a:1,e:"Syllogisme : propriété de la catégorie transmise à l'individu."},
+  {t:"Suite : 2, 5, 11, 23, ?",opts:["35","45","47","41"],a:2,e:"×2+1 à chaque terme : 23×2+1=47."},
+  {t:"LIVRE est à BIBLIOTHÈQUE ce que TABLEAU est à ?",opts:["Peintre","Musée","Cadre","Mur"],a:1,e:"Lieu de conservation/exposition de l'objet."},
+  {t:"Suite : 81, 27, 9, 3, ?",opts:["1","0","2","1.5"],a:0,e:"Division par 3 à chaque terme : 3÷3=1."},
+  {t:"Aucun reptile n'a de plumes. Le serpent est un reptile. Donc le serpent ?",opts:["A des écailles","N'a pas de plumes","Pond des œufs","Est venimeux"],a:1,e:"Syllogisme négatif direct."},
+  {t:"Suite : 4, 8, 7, 14, 13, ?",opts:["20","26","19","16"],a:1,e:"Alternance ×2 puis -1 : 13×2=26."},
+  {t:"PLUIE est à PARAPLUIE ce que FROID est à ?",opts:["Hiver","Manteau","Neige","Glace"],a:1,e:"Objet de protection contre le phénomène."},
+  {t:"Suite : 12, 24, 20, 40, 36, ?",opts:["72","60","68","48"],a:0,e:"Motif ×2 puis -4 : 36×2=72."},
+  {t:"Combien font 3 facteurs dans la suite logique : 2, 6, 18, 54, ?",opts:["108","162","144","150"],a:1,e:"×3 à chaque terme : 54×3=162."},
+  {t:"CLEF est à PORTE ce que CODE est à ?",opts:["Ordinateur","Coffre-fort numérique","Serrure","Mot de passe"],a:2,e:"Élément qui permet l'accès/ouverture."},
+  {t:"Suite : 1, 2, 4, 7, 11, ?",opts:["15","16","18","14"],a:1,e:"Différences +1,+2,+3,+4,+5 → 11+5=16."},
  ],
  difficile:[
   {t:"Suite de Fibonacci : 1, 1, 2, 3, 5, 8, 13, ?",opts:["18","21","20","19"],a:1,e:"Somme des deux précédents : 8+13=21."},
@@ -868,59 +886,16 @@ logique:{label:'Logique',
   {t:"DÉDUCTION — INDUCTION :: PARTICULIER — ?",opts:["Général","Spécifique","Unique","Précis"],a:0,e:"Induction : particulier→général."},
   {t:"Suite : 2, 3, 5, 8, 12, 17, ?",opts:["21","23","25","22"],a:1,e:"Différences +1,+2,+3,+4,+5,+6 → 23."},
   {t:"FRÉQUENCE est à HERTZ ce que PRESSION est à ?",opts:["Newton","Pascal","Bar","Joule"],a:1,e:"Unité SI de la pression = Pascal."},
- ]
-},
-calcul:{label:'Calcul',
- facile:[
-  {t:"Un avion vole à 600 km/h. En 30 minutes, quelle distance ?",opts:["200 km","300 km","400 km","450 km"],a:1,e:"600×0.5=300 km."},
-  {t:"15% de 200 = ?",opts:["25","30","35","40"],a:1,e:"15/100×200=30."},
-  {t:"Vitesse 360 km/h en m/s ?",opts:["80 m/s","100 m/s","60 m/s","90 m/s"],a:1,e:"360÷3.6=100 m/s."},
-  {t:"Réservoir 800 L à 65%. Combien manque-t-il ?",opts:["280 L","300 L","320 L","260 L"],a:0,e:"800×0.65=520 L ; 800-520=280 L."},
-  {t:"PGCD de 48 et 36 ?",opts:["6","8","12","18"],a:2,e:"48=4×12 ; 36=3×12."},
-  {t:"37 × 3 + 14 – 5 = ?",opts:["118","120","115","122"],a:1,e:"111+14-5=120."},
-  {t:"8 soldats, 40 rations en 5 jours. Pour 12 soldats sur 10 jours ?",opts:["90","100","120","80"],a:2,e:"1 ration/soldat/jour. 12×10=120."},
-  {t:"√144 = ?",opts:["11","12","13","14"],a:1,e:"12×12=144."},
- ],
- difficile:[
-  {t:"Montée 800 ft/min. Depuis 2000 ft vers FL120 (12000 ft) ?",opts:["10 min","12 min 30s","14 min","15 min"],a:1,e:"10000÷800=12.5 min."},
-  {t:"Conso 2400 L/h, réservoir 7200 L. Autonomie à 80% de puissance ?",opts:["3h00","3h45","4h00","3h30"],a:1,e:"1920 L/h. 7200÷1920=3.75h=3h45."},
-  {t:"√1764 = ?",opts:["42","43","44","41"],a:0,e:"42²=1764."},
-  {t:"sin(30°)×cos(60°)+cos(30°)×sin(60°) = ?",opts:["0.5","0.75","1","0.866"],a:2,e:"sin(a+b) → sin(90°)=1."},
-  {t:"3 tours en 12 minutes. Combien de degrés/seconde ?",opts:["1.5°/s","3°/s","1°/s","2°/s"],a:0,e:"3×360=1080°. 720s. 1080÷720=1.5°/s."},
-  {t:"1850 m en milles nautiques (1 NM=1852 m) ?",opts:["0.9 NM","1.0 NM","1.1 NM","0.8 NM"],a:1,e:"1850÷1852≈1.0 NM."},
-  {t:"Vent traversier 40 kt, vitesse propre 240 kt. Vitesse sol ?",opts:["200 kt","240 kt","243 kt","280 kt"],a:2,e:"√(240²+40²)≈243 kt."},
- ]
-},
-memoire:{label:'Mémoire',
- facile:[
-  {t:"Séquence : 7 – 3 – 9 – 1 – 5\n\nQuel était le 3ème chiffre ?",opts:["3","7","9","1"],a:2,e:"7(1) 3(2) 9(3)."},
-  {t:"Liste : FUSÉE – RADAR – DELTA – OSCAR – BRAVO\n\nQuel mot en 4ème position ?",opts:["DELTA","OSCAR","BRAVO","RADAR"],a:1,e:"4ème = OSCAR."},
-  {t:"Suite : B, F, K, M, T, A, R — Lettre en 5ème position ?",opts:["M","A","T","K"],a:2,e:"B(1)F(2)K(3)M(4)T(5)."},
-  {t:"Intrus : AIGLE – FAUCON – BUSE – RENARD – MILAN",opts:["AIGLE","FAUCON","RENARD","MILAN"],a:2,e:"RENARD est un mammifère."},
-  {t:"Combien de 'A' dans :\n« L'ARMÉE DE L'AIR ASSURE LA PROTECTION »",opts:["5","6","7","4"],a:1,e:"6 occurrences."},
-  {t:"ALPHA=1, BRAVO=2, CHARLIE=3, DELTA=4, ECHO=5\nCHARLIE + ECHO = ?",opts:["6","7","8","35"],a:2,e:"3+5=8."},
- ],
- difficile:[
-  {t:"4G-7K-2M-9B-5T — Ordre croissant par chiffre : 3ème paire ?",opts:["5T","7K","4G","9B"],a:0,e:"2M,4G,5T,7K,9B. 3ème=5T."},
-  {t:"L1 : 83–47–62–91–55–38\nL2 : 83–47–26–91–55–38\nQuelle position diffère ?",opts:["Position 1","Position 3","Position 5","Position 6"],a:1,e:"Position 3 : 62 vs 26."},
-  {t:"Code ECHO-DELTA-ALPHA = ?",opts:["5-4-1","4-5-1","5-3-1","4-3-1"],a:0,e:"E=5, D=4, A=1."},
-  {t:"Séquence : 7-2-8-4-1-9-3-6-5\nSomme des positions paires (2,4,6,8) ?",opts:["18","21","22","20"],a:1,e:"2+4+9+6=21."},
- ]
-},
-spatial:{label:'Spatial',
- facile:[
-  {t:"Flèche → (droite). Rotation 90° horaire. Nouvelle direction ?",opts:["← Gauche","↑ Haut","↓ Bas","→ Droite"],a:2,e:"Horaire : DROITE→BAS."},
-  {t:"Cap Nord (000°). Virage droite 90°. Nouveau cap ?",opts:["090° Est","270° Ouest","180° Sud","360° Nord"],a:0,e:"000+90=090°=Est."},
-  {t:"Dans un miroir vertical, une main droite levée apparaît comme ?",opts:["Main droite levée","Main gauche levée","Main droite baissée","Main gauche baissée"],a:1,e:"Miroir inverse gauche/droite."},
-  {t:"Cap 180° (Sud). Virage droite 90°. Nouveau cap ?",opts:["090°","270°","000°","045°"],a:1,e:"180+90=270°=Ouest."},
-  {t:"Flèche ↑ subit 3 rotations horaires de 90°. Direction finale ?",opts:["↑","↓","←","→"],a:2,e:"Après 3 rotations de 90° horaire : ←."},
- ],
- difficile:[
-  {t:"Cap 045°. Virage droite 225°. Nouveau cap ?",opts:["270°","090°","360°","315°"],a:0,e:"045+225=270°=Ouest."},
-  {t:"Cap 350°. Virage gauche 100°. Nouveau cap ?",opts:["250°","090°","450°","110°"],a:0,e:"350-100=250°."},
-  {t:"Cube 3×3×3 entièrement peint. Combien de petits cubes ont exactement 2 faces peintes ?",opts:["8","12","16","24"],a:1,e:"12 arêtes × 1 cube = 12."},
-  {t:"Avion cap NORD, looping complet, puis virage droite 90°. Cap final ?",opts:["Nord","Est","Sud","Ouest"],a:1,e:"Looping 360° = même cap. Virage droite 90° = Est."},
-  {t:"Cap magnétique 350°, variation 5°W. Cap vrai ?",opts:["355°","345°","350°","005°"],a:1,e:"CV = CM - Var.Ouest = 345°T."},
+  {t:"Suite : 3, 7, 16, 35, 74, ?",opts:["140","151","153","149"],a:2,e:"×2+1 puis +2 alterné: motif n×2+(n+1) → 74×2+5=153."},
+  {t:"Si certains A sont B, et tous les B sont C, peut-on conclure que certains A sont C ?",opts:["Oui, toujours","Non, jamais","Seulement si A=B","Indéterminé sans plus d'info"],a:0,e:"Si certains A∈B et B⊂C, alors ces A∈C : conclusion valide."},
+  {t:"Suite : 5, 11, 23, 47, ?",opts:["94","95","93","96"],a:1,e:"×2+1 à chaque terme : 47×2+1=95."},
+  {t:"ENTROPIE est à DÉSORDRE ce que ÉNERGIE est à ?",opts:["Chaleur","Capacité de travail","Mouvement","Puissance"],a:1,e:"Définition physique fondamentale de l'énergie."},
+  {t:"Suite alternée : 1, 100, 4, 81, 9, 64, ?",opts:["16","49","25","36"],a:1,e:"Deux suites entrelacées : carrés croissants (1,4,9,16) et carrés décroissants (100,81,64,49). Prochain terme de la 2e suite=49."},
+  {t:"Tous les X sont Y. Certains Y sont Z. Peut-on en déduire que certains X sont Z ?",opts:["Oui certainement","Non, pas nécessairement","Oui si X=Y","Toujours faux"],a:1,e:"Le syllogisme ne permet pas cette conclusion : les Y qui sont Z peuvent ne pas inclure les X."},
+  {t:"Suite : 2, 3, 7, 16, 32, ?",opts:["57","58","59","56"],a:0,e:"Différences 1,4,9,16,25 (carrés) : 32+25=57."},
+  {t:"PARADOXE est à CONTRADICTION ce que SYLLOGISME est à ?",opts:["Erreur","Déduction logique","Question","Hypothèse"],a:1,e:"Le syllogisme est un raisonnement de déduction logique formelle."},
+  {t:"Suite : 100, 50, 48, 24, 22, ?",opts:["20","11","18","44"],a:1,e:"Motif alterné ÷2 puis -2 : 22÷2=11."},
+  {t:"Si P implique Q, et Q est faux, que peut-on dire de P ?",opts:["P est vrai","P est faux","P est indéterminé","P implique non-Q"],a:1,e:"Contraposée : si Q est faux et P→Q, alors P doit être faux (sinon Q serait vrai)."},
  ]
 },
 vocabulaire:{label:'Vocabulaire',
@@ -930,6 +905,19 @@ vocabulaire:{label:'Vocabulaire',
   {t:"LACUNE signifie ?",opts:["Abondance","Manque, déficience","Surprise","Précision"],a:1,e:"Lacune = vide, manque."},
   {t:"Terme générique : CHASSEUR – TRANSPORT – HÉLICOPTÈRE – BOMBARDIER",opts:["Militaire","Aéronef","Avion","Turbine"],a:1,e:"AÉRONEF englobe avions et hélicoptères."},
   {t:"ALERTE est à DANGER ce que SYMPTÔME est à ?",opts:["Médecin","Maladie","Traitement","Fièvre"],a:1,e:"Le symptôme signale une maladie."},
+  {t:"Synonyme de RAPIDE ?",opts:["Lent","Prompt","Calme","Lourd"],a:1,e:"PROMPT = rapide, qui agit vite."},
+  {t:"Antonyme de GÉNÉREUX ?",opts:["Avare","Riche","Modeste","Discret"],a:0,e:"GÉNÉREUX ↔ AVARE."},
+  {t:"PRÉCAUTION signifie ?",opts:["Imprudence","Mesure préventive","Punition","Récompense"],a:1,e:"Précaution = mesure prise par prudence à l'avance."},
+  {t:"Terme générique : MARTEAU – TOURNEVIS – PINCE – CLÉ",opts:["Métal","Outil","Bricolage","Atelier"],a:1,e:"Tous sont des OUTILS."},
+  {t:"MÉDECIN est à PATIENT ce que PROFESSEUR est à ?",opts:["École","Élève","Cours","Examen"],a:1,e:"Relation professionnel-bénéficiaire du service."},
+  {t:"Synonyme de DIFFICILE ?",opts:["Aisé","Ardu","Simple","Clair"],a:1,e:"ARDU = difficile, pénible."},
+  {t:"Antonyme de ABONDANT ?",opts:["Rare","Riche","Vaste","Multiple"],a:0,e:"ABONDANT ↔ RARE."},
+  {t:"VIGILANT signifie ?",opts:["Distrait","Attentif, sur ses gardes","Fatigué","Confiant"],a:1,e:"Vigilant = qui surveille attentivement."},
+  {t:"Terme générique : SEINE – LOIRE – RHÔNE – GARONNE",opts:["Région","Fleuve","Pont","Vallée"],a:1,e:"Tous sont des FLEUVES français."},
+  {t:"PILOTE est à AVION ce que CAPITAINE est à ?",opts:["Mer","Navire","Équipage","Port"],a:1,e:"Relation conducteur-véhicule."},
+  {t:"Synonyme de MÉFIANT ?",opts:["Naïf","Suspicieux","Confiant","Crédule"],a:1,e:"SUSPICIEUX = qui se méfie, soupçonneux."},
+  {t:"Antonyme de TIMIDE ?",opts:["Réservé","Audacieux","Discret","Calme"],a:1,e:"TIMIDE ↔ AUDACIEUX."},
+  {t:"PERSÉVÉRANT signifie ?",opts:["Qui abandonne facilement","Qui persiste avec constance","Indécis","Distrait"],a:1,e:"Persévérant = qui continue avec ténacité malgré les obstacles."},
  ],
  difficile:[
   {t:"CIRCUMNAVIGATION signifie ?",opts:["Navigation côtière","Sous-marine","Tour du monde","Nocturne"],a:2,e:"Circum = autour du globe."},
@@ -938,25 +926,266 @@ vocabulaire:{label:'Vocabulaire',
   {t:"PROLIXE s'oppose à ?",opts:["Bavard","Verbeux","Laconique","Éloquent"],a:2,e:"Prolixe = trop long ↔ laconique = bref."},
   {t:"En aéronautique, CEILING désigne ?",opts:["Plafond de cabine","Base des nuages","Altitude max","Toit de piste"],a:1,e:"Base de la couche nuageuse ≥5/8 du ciel."},
   {t:"PRÉPONDÉRANT signifie ?",opts:["Lourd","Prévisible","D'importance dominante","Prudent"],a:2,e:"Plus de poids que les autres éléments."},
- ]
-},
-instrument:{label:'Instruments',
- facile:[
-  {t:"Altimètre calé QNH indique 1200 ft. L'avion est à ?",opts:["1200 ft AMSL","1200 ft AGL","1200 ft ASFC","FL120"],a:0,e:"QNH calée = altitude AMSL."},
-  {t:"Horizon artificiel : ailes inclinées à droite 30°. L'avion est en ?",opts:["Virage gauche 30°","Virage droit 30°","Cabré 30°","Piqué 30°"],a:1,e:"Inclinaison droite = virage droit."},
-  {t:"VSI indique +500 ft/min. L'avion ?",opts:["Descend","Monte","Vol horizontal","Accélère"],a:1,e:"VSI + = montée."},
-  {t:"Boussole indique 090°. Cap de l'avion ?",opts:["Nord","Sud","Est","Ouest"],a:2,e:"090° = plein Est."},
-  {t:"ILS : glide slope 2 points au-dessus, LOC centré. Le pilote doit ?",opts:["Cabrer","Piquer","Virer à droite","Maintenir"],a:1,e:"Trop haut → piquer pour rejoindre l'axe."},
- ],
- difficile:[
-  {t:"Altimètre calé QFE, aérodrome à 300 ft AMSL. Avion à 1500 ft AMSL. Lecture ?",opts:["1500 ft","1800 ft","1200 ft","300 ft"],a:2,e:"QFE = hauteur AGL. 1500-300=1200 ft."},
-  {t:"ADI : piqué 10°, roulis droit 45°. Virage ?",opts:["Gauche en montée","Droit en descente","Droit en montée","Gauche en descente"],a:1,e:"Roulis droit=virage droit. Piqué=descente."},
-  {t:"N1=96%, ITT=850°C (lim 870°C). Que fait le pilote ?",opts:["Rien","Réduire N1","Surveiller ITT / réduire","Augmenter N2"],a:2,e:"ITT à 20°C de la limite → réduire légèrement."},
-  {t:"Cap vrai 345°, variation 5°W. Cap magnétique ?",opts:["340°","350°","345°","355°"],a:1,e:"CM = CV + Var.Ouest = 345+5=350°M."},
-  {t:"QNH 1013 hPa. FL100 correspond à ?",opts:["10000 ft AMSL","10000 ft AGL","≈10000 ft AMSL si QNH≈1013","Dépend du vent"],a:2,e:"FL = niveau pression base QNE (1013.25 hPa)."},
+  {t:"DIRIMANT signifie ?",opts:["Qui divise","Qui empêche de manière décisive","Qui dirige","Qui retarde"],a:1,e:"Dirimant = qui constitue un obstacle décisif, annulant."},
+  {t:"PERSPICACE est synonyme de ?",opts:["Naïf","Lucide et pénétrant","Hésitant","Distrait"],a:1,e:"Perspicace = qui comprend vite et finement les situations."},
+  {t:"OBSÉQUIEUX signifie ?",opts:["Hostile","Servile à l'excès","Méfiant","Indifférent"],a:1,e:"Obséquieux = qui multiplie les marques de politesse par servilité."},
+  {t:"En aéronautique, DÉCROCHAGE (stall) désigne ?",opts:["Panne moteur","Perte de portance par angle d'attaque excessif","Panne électrique","Sortie de piste"],a:1,e:"Le décrochage survient quand l'angle d'attaque dépasse l'angle critique, provoquant une perte de portance."},
+  {t:"INTRANSIGEANT s'oppose à ?",opts:["Strict","Rigide","Conciliant","Sévère"],a:2,e:"Intransigeant = qui ne fait aucune concession ↔ conciliant."},
+  {t:"PUSILLANIME signifie ?",opts:["Courageux","Craintif, manquant d'audace","Généreux","Honnête"],a:1,e:"Pusillanime = qui manque de courage, craintif par faiblesse d'âme."},
+  {t:"En aviation militaire, INTERCEPTION désigne ?",opts:["Ravitaillement en vol","Action d'intercepter un aéronef hostile/inconnu","Atterrissage d'urgence","Formation de vol"],a:1,e:"L'interception est l'action de rejoindre et identifier/neutraliser un aéronef non identifié ou hostile."},
+  {t:"VÉLOCE est synonyme de ?",opts:["Lent","Rapide, agile","Lourd","Fragile"],a:1,e:"Véloce = rapide dans ses mouvements (du latin velox)."},
+  {t:"ININTELLIGIBLE signifie ?",opts:["Très intelligent","Impossible à comprendre","Évident","Bien organisé"],a:1,e:"Inintelligible = qu'on ne peut comprendre, incompréhensible."},
  ]
 }
 };
+
+// ═══════════════════════════════════════════════════════════════════
+//  GÉNÉRATEURS PARAMÉTRIQUES — CALCUL (infinis)
+// ═══════════════════════════════════════════════════════════════════
+const GEN_CALCUL_FACILE=[
+ ()=>{const v=pick([300,400,450,500,600,700,800]),mins=pick([15,20,30,40,45]),d=Math.round(v*mins/60);
+   const{opts,a}=buildOpts(d+' km',[(d+50)+' km',(d-30)+' km',(d+20)+' km']);
+   return{t:`Un avion vole à ${v} km/h. En ${mins} minutes, quelle distance parcourt-il ?`,opts,a,e:`${v} km/h × ${mins}/60 h = ${d} km.`};},
+ ()=>{const base=pick([150,180,200,250,300,400,500]),pct=pick([10,15,20,25,30,40]),res=Math.round(base*pct/100);
+   const{opts,a}=buildOpts(String(res),[String(res+10),String(res-5),String(res+20)]);
+   return{t:`Quel est ${pct}% de ${base} ?`,opts,a,e:`${pct}/100 × ${base} = ${res}.`};},
+ ()=>{const kmh=pick([180,216,252,288,324,360,396]),ms=Math.round(kmh/3.6);
+   const{opts,a}=buildOpts(ms+' m/s',[(ms+10)+' m/s',(ms-8)+' m/s',(ms+5)+' m/s']);
+   return{t:`Convertir ${kmh} km/h en m/s ?`,opts,a,e:`${kmh} ÷ 3.6 = ${ms} m/s.`};},
+ ()=>{const cap=pick([600,700,800,900,1000,1200]),pct=pick([40,55,60,65,70,75]),present=Math.round(cap*pct/100),manque=cap-present;
+   const{opts,a}=buildOpts(manque+' L',[(manque+30)+' L',(manque-20)+' L',(manque+50)+' L']);
+   return{t:`Réservoir de ${cap} L rempli à ${pct}%. Combien de litres manquent-ils ?`,opts,a,e:`${cap}×${pct}%=${present} L présents ; ${cap}-${present}=${manque} L.`};},
+ ()=>{const pairs=[[24,36,12],[18,30,6],[40,60,20],[28,42,14],[16,24,8],[45,75,15],[32,48,16],[20,30,10]];const[a1,b1,pg]=pick(pairs);
+   const{opts,a}=buildOpts(String(pg),[String(pg*2),String(Math.round(pg/2)),String(pg+4)]);
+   return{t:`Quel est le PGCD de ${a1} et ${b1} ?`,opts,a,e:`${a1} et ${b1} ont pour PGCD ${pg}.`};},
+ ()=>{const x=rnd(15,40),y=rnd(2,5),z=rnd(5,20),w=rnd(2,10),res=x*y+z-w;
+   const{opts,a}=buildOpts(String(res),[String(res+2),String(res-3),String(res+5)]);
+   return{t:`Calculez : ${x} × ${y} + ${z} – ${w} =`,opts,a,e:`${x}×${y}=${x*y} ; +${z}=${x*y+z} ; -${w}=${res}.`};},
+ ()=>{const n=rnd(9,17),sq=n*n;
+   const{opts,a}=buildOpts(String(n),[String(n+1),String(n-1),String(n+2)]);
+   return{t:`√${sq} = ?`,opts,a,e:`${n}×${n}=${sq}.`};},
+ ()=>{const s1=pick([4,6,8,10]),j1=pick([3,4,5,6]),r1=s1*j1,s2=s1+pick([2,4,6]),j2=j1*2,res=s2*j2;
+   const{opts,a}=buildOpts(String(res),[String(res-10),String(res+15),String(res-20)]);
+   return{t:`${s1} soldats consomment ${r1} rations en ${j1} jours. Combien en faut-il pour ${s2} soldats sur ${j2} jours ?`,opts,a,e:`1 ration/soldat/jour. ${s2}×${j2}=${res}.`};},
+ ()=>{const a1=rnd(20,80),b1=rnd(10,40),op=pick(['+','-']);const res=op==='+'?a1+b1:a1-b1;
+   const{opts,a}=buildOpts(String(res),[String(res+3),String(res-4),String(res+7)]);
+   return{t:`${a1} ${op} ${b1} = ?`,opts,a,e:`${a1}${op}${b1}=${res}.`};},
+ ()=>{const frac=pick([[1,2,50],[1,4,25],[3,4,75],[1,5,20],[2,5,40],[3,5,60]]);const[num,den,pct]=frac;const base=pick([80,120,160,200,240]);const res=Math.round(base*num/den);
+   const{opts,a}=buildOpts(String(res),[String(res+10),String(res-8),String(res+15)]);
+   return{t:`Combien font ${num}/${den} de ${base} ?`,opts,a,e:`${num}/${den}=${pct}%. ${base}×${pct}%=${res}.`};},
+];
+const GEN_CALCUL_DIFFICILE=[
+ ()=>{const taux=pick([600,700,800,900,1000]),alt1=pick([1000,1500,2000,2500]),alt2=pick([10000,11000,12000,13000]),diff=alt2-alt1,minT=diff/taux,min=Math.floor(minT),sec=Math.round((minT-min)*60);
+   const correct=`${min} min ${sec.toString().padStart(2,'0')}s`;
+   const{opts,a}=buildOpts(correct,[`${min} min`,`${min+1} min ${sec}s`,`${min-1} min ${sec}s`]);
+   return{t:`Avion monte à ${taux} ft/min. Depuis ${alt1} ft vers FL${alt2/100} (${alt2} ft), combien de temps ?`,opts,a,e:`(${alt2}-${alt1})÷${taux}=${minT.toFixed(2)} min = ${correct}.`};},
+ ()=>{const conso=pick([1800,2000,2200,2400,2600]),reserv=pick([5400,6000,7200,7800,8400]),pctP=pick([70,75,80,85]),consoR=conso*pctP/100,h=reserv/consoR,hh=Math.floor(h),mm=Math.round((h-hh)*60);
+   const correct=`${hh}h${mm.toString().padStart(2,'0')}`;
+   const{opts,a}=buildOpts(correct,[`${hh}h00`,`${hh+1}h${mm.toString().padStart(2,'0')}`,`${hh}h${((mm+15)%60).toString().padStart(2,'0')}`]);
+   return{t:`Taux de conso ${conso} L/h, réservoir ${reserv} L. Autonomie à ${pctP}% de puissance ?`,opts,a,e:`Conso réelle=${consoR} L/h. ${reserv}÷${consoR}=${h.toFixed(2)}h=${correct}.`};},
+ ()=>{const n=rnd(31,55),sq=n*n;
+   const{opts,a}=buildOpts(String(n),[String(n+1),String(n-1),String(n+2)]);
+   return{t:`√${sq} = ?`,opts,a,e:`${n}×${n}=${sq}.`};},
+ ()=>{const tours=pick([2,3,4,5]),minutes=pick([8,10,12,15,16]),totD=tours*360,totS=minutes*60,res=totD/totS;
+   const{opts,a}=buildOpts(res.toFixed(1)+'°/s',[(res*2).toFixed(1)+'°/s',(res/2).toFixed(1)+'°/s',(res+0.5).toFixed(1)+'°/s']);
+   return{t:`Un aéronef fait ${tours} tours en ${minutes} minutes. Combien de degrés par seconde ?`,opts,a,e:`${tours}×360=${totD}°. ${minutes}×60=${totS}s. ${totD}÷${totS}=${res.toFixed(1)}°/s.`};},
+ ()=>{const m=pick([925,1389,1852,2315,2778,3704,4626]),nm=m/1852;
+   const{opts,a}=buildOpts(nm.toFixed(1)+' NM',[(nm+0.2).toFixed(1)+' NM',(nm-0.1).toFixed(1)+' NM',(nm+0.4).toFixed(1)+' NM']);
+   return{t:`${m} m en milles nautiques (1 NM=1852 m) ?`,opts,a,e:`${m}÷1852≈${nm.toFixed(2)} NM.`};},
+ ()=>{const vp=pick([200,220,240,260,280]),vent=pick([30,35,40,45,50]),vs=Math.round(Math.sqrt(vp*vp+vent*vent));
+   const{opts,a}=buildOpts(vs+' kt',[vp+' kt',(vp+vent)+' kt',(vs-15)+' kt']);
+   return{t:`Vent traversier ${vent} kt, vitesse propre ${vp} kt. Vitesse sol approximative (vent à 90°) ?`,opts,a,e:`√(${vp}²+${vent}²)≈${vs} kt.`};},
+ ()=>{const cv=pick([330,340,345,350,355,5,10]),varO=pick([2,3,4,5,6,7]),cm=(cv+varO)%360;
+   const{opts,a}=buildOpts(cm.toString().padStart(3,'0')+'°',[cv.toString().padStart(3,'0')+'°',((cv-varO+360)%360).toString().padStart(3,'0')+'°',((cm+5)%360).toString().padStart(3,'0')+'°']);
+   return{t:`Cap vrai ${cv.toString().padStart(3,'0')}°, variation ${varO}°W. Cap magnétique ?`,opts,a,e:`CM = CV + Var.Ouest = ${cv}+${varO}=${cm}°M.`};},
+ ()=>{const n1=pick([88,90,92,94,96,98]),itt=pick([820,830,840,850,860]),lim=pick([870,880,890]);const marge=lim-itt;
+   const correct=marge<=20?'Surveiller / réduire légèrement':'Rien, marge confortable';
+   const{opts,a}=buildOpts(correct,['Rien, marge confortable','Couper le moteur immédiatement','Augmenter la puissance'].filter(o=>o!==correct).slice(0,3));
+   return{t:`N1=${n1}%, ITT=${itt}°C (limite ${lim}°C). Que fait le pilote ?`,opts,a,e:`Marge=${marge}°C. ${marge<=20?'Marge faible → surveiller et réduire légèrement.':'Marge suffisante.'}`};},
+ ()=>{const d=rnd(40,90),v=rnd(150,400),t=(d/v*60);
+   const{opts,a}=buildOpts(t.toFixed(0)+' min',[(t+5).toFixed(0)+' min',(t-4).toFixed(0)+' min',(t+10).toFixed(0)+' min']);
+   return{t:`Distance ${d} NM à parcourir, vitesse sol ${v} kt. Temps de vol estimé ?`,opts,a,e:`${d}/${v}×60=${t.toFixed(1)} min.`};},
+];
+
+// ═══════════════════════════════════════════════════════════════════
+//  GÉNÉRATEURS PARAMÉTRIQUES — SPATIAL (infinis)
+// ═══════════════════════════════════════════════════════════════════
+const DIRS=['000° (Nord)','090° (Est)','180° (Sud)','270° (Ouest)'];
+function capLabel(deg){deg=((deg%360)+360)%360;const names={0:'Nord',90:'Est',180:'Sud',270:'Ouest',45:'NE',135:'SE',225:'SO',315:'NO'};return deg.toString().padStart(3,'0')+'°'+(names[deg]?' ('+names[deg]+')':'');}
+const GEN_SPATIAL_FACILE=[
+ ()=>{const start=rnd(0,11)*30,turn=pick([30,60,90,120,150,180,210,240,270]),dir=pick(['droite','gauche']);
+   const res=dir==='droite'?(start+turn)%360:((start-turn)%360+360)%360;
+   const{opts,a}=buildOpts(capLabel(res),[capLabel((res+90)%360),capLabel((res+180)%360),capLabel((res+270)%360)]);
+   return{t:`Cap ${capLabel(start)}. Virage ${dir} de ${turn}°. Nouveau cap ?`,opts,a,e:`${start}°${dir==='droite'?'+':'-'}${turn}°=${res}°.`};},
+ ()=>{const dirs=['→ (droite)','↑ (haut)','← (gauche)','↓ (bas)'];const start=rnd(0,3);const rotations=pick([1,2,3,4,5,6,7]);const horaire=pick([true,false]);
+   const res=horaire?(start+rotations)%4:((start-rotations)%4+4)%4;
+   const{opts,a}=buildOpts(dirs[res],dirs.filter((_,i)=>i!==res));
+   return{t:`Flèche ${dirs[start]}. Rotation${rotations>1?'s':''} de 90° ${horaire?'horaire':'antihoraire'} ×${rotations}. Direction finale ?`,opts,a,e:`${horaire?'Horaire':'Antihoraire'} : ${rotations} rotation(s) depuis ${dirs[start]} → ${dirs[res]}.`};},
+ ()=>{const main=pick(['droite','gauche']);const haut=pick([true,false]);const res=(main==='droite'?'Main gauche':'Main droite')+(haut?' levée':' baissée');
+   const allOpts=['Main droite levée','Main gauche levée','Main droite baissée','Main gauche baissée'];
+   const{opts,a}=buildOpts(res,allOpts.filter(o=>o!==res));
+   return{t:`Dans un miroir vertical, une main ${main} ${haut?'levée':'baissée'} apparaît comme ?`,opts,a,e:`Un miroir vertical inverse gauche/droite (haut/bas inchangé).`};},
+ ()=>{const start=rnd(0,11)*30,turn=pick([45,90,135,180,225,270]);
+   const res=(start+turn)%360;
+   const{opts,a}=buildOpts(capLabel(res),[capLabel((res+90)%360),capLabel((res+180)%360),capLabel(start)]);
+   return{t:`Cap ${capLabel(start)}. Virage droite de ${turn}°. Nouveau cap ?`,opts,a,e:`${start}+${turn}=${res}°.`};},
+ ()=>{const shapes=[['carré','4 côtés égaux'],['triangle équilatéral','3 côtés égaux'],['hexagone régulier','6 côtés égaux'],['pentagone régulier','5 côtés égaux']];
+   const[name,desc]=pick(shapes);const sides={'carré':4,'triangle équilatéral':3,'hexagone régulier':6,'pentagone régulier':5}[name];
+   const angle=Math.round(360/sides);
+   const{opts,a}=buildOpts(angle+'°',[(angle+10)+'°',(angle-5)+'°',(360-angle)+'°']);
+   return{t:`Un ${name} (${desc}) tourne sur lui-même. Quel est l'angle minimal de rotation pour qu'il retrouve une position identique ?`,opts,a,e:`360°÷${sides} côtés=${angle}°.`};},
+ ()=>{const obj=pick([['un dé','6'],['une pièce de monnaie','2'],['un panneau STOP (octogone)','8']]);const[name,faces]=obj;
+   const n=parseInt(faces);
+   const{opts,a}=buildOpts(faces+' faces',[(n+2)+' faces',(n-2)+' faces',(n+4)+' faces']);
+   return{t:`Combien de faces (ou côtés) possède ${name} ?`,opts,a,e:`${name} possède ${faces} faces/côtés.`};},
+];
+const GEN_SPATIAL_DIFFICILE=[
+ ()=>{const start=rnd(0,35)*10,turn=pick([135,180,225,270,315]),dir=pick(['droite','gauche']);
+   const res=dir==='droite'?(start+turn)%360:((start-turn)%360+360)%360;
+   const{opts,a}=buildOpts(capLabel(res),[capLabel((res+45)%360),capLabel((res+90)%360),capLabel((res+180)%360)]);
+   return{t:`Cap ${start.toString().padStart(3,'0')}°. Virage ${dir} de ${turn}°. Nouveau cap ?`,opts,a,e:`${start}°${dir==='droite'?'+':'-'}${turn}°=${res}°.`};},
+ ()=>{const cv=rnd(0,35)*10,varW=pick([2,3,4,5,6,7,8]);const cv2=(cv-varW+360)%360;
+   const{opts,a}=buildOpts(cv2.toString().padStart(3,'0')+'°',[cv.toString().padStart(3,'0')+'°',((cv+varW)%360).toString().padStart(3,'0')+'°',((cv2+5)%360).toString().padStart(3,'0')+'°']);
+   return{t:`Cap magnétique ${cv.toString().padStart(3,'0')}°, variation ${varW}°W. Cap vrai ?`,opts,a,e:`CV = CM - Var.Ouest = ${cv}-${varW}=${cv2}°T.`};},
+ ()=>{const n=pick([3,4,5]);const total=n*n*n;const aretes=(n-2)*12;
+   const{opts,a}=buildOpts(String(aretes),[String(aretes+4),String(aretes-4),String(Math.round(aretes*1.5))]);
+   return{t:`Cube ${n}×${n}×${n} entièrement peint. Combien de petits cubes ont exactement 2 faces peintes ?`,opts,a,e:`Cubes d'arête (non sommet) : 12 arêtes × ${n-2} = ${aretes}.`};},
+ ()=>{const start=pick([0,90,180,270]);const loops=pick([1,2]);const turn=pick([90,180,270]);
+   const res=(start+turn)%360; // looping(s) ramène au même cap
+   const{opts,a}=buildOpts(capLabel(res),[capLabel(start),capLabel((res+90)%360),capLabel((res+180)%360)]);
+   return{t:`Avion cap ${capLabel(start)}, effectue ${loops} looping(s) complet(s), puis virage droite ${turn}°. Cap final ?`,opts,a,e:`${loops} looping(s) complet(s) = retour au même cap (${capLabel(start)}). Virage droite ${turn}° = ${capLabel(res)}.`};},
+];
+
+// ═══════════════════════════════════════════════════════════════════
+//  GÉNÉRATEURS PARAMÉTRIQUES — MÉMOIRE (infinis)
+// ═══════════════════════════════════════════════════════════════════
+function randDigits(n){return Array.from({length:n},()=>rnd(0,9));}
+function randLetters(n){const L='ABCDEFGHJKLMNPQRSTUVWXYZ';return Array.from({length:n},()=>L[rnd(0,L.length-1)]);}
+const PHONETIC=['ALPHA','BRAVO','CHARLIE','DELTA','ECHO','FOXTROT','GOLF','HOTEL','INDIA','JULIETT'];
+const ANIMALS_RAPACES=['AIGLE','FAUCON','BUSE','MILAN','EPERVIER'];
+const ANIMALS_INTRUS=['RENARD','LOUP','OURS','LIEVRE','BLAIREAU'];
+
+const GEN_MEMOIRE_FACILE=[
+ ()=>{const seq=randDigits(5);const pos=rnd(0,4);
+   const{opts,a}=buildOpts(String(seq[pos]),seq.filter((_,i)=>i!==pos).map(String).slice(0,3));
+   return{t:`Séquence : ${seq.join(' – ')}\n\nQuel était le ${pos+1}${pos===0?'er':'ème'} chiffre ?`,opts,a,e:`Position ${pos+1} = ${seq[pos]}.`};},
+ ()=>{const words=shuffle(PHONETIC).slice(0,5);const pos=rnd(0,4);
+   const{opts,a}=buildOpts(words[pos],words.filter((_,i)=>i!==pos));
+   return{t:`Liste : ${words.join(' – ')}\n\nQuel mot était en ${pos+1}${pos===0?'ère':'ème'} position ?`,opts,a,e:`Position ${pos+1} = ${words[pos]}.`};},
+ ()=>{const letters=randLetters(7);const pos=rnd(0,6);
+   const{opts,a}=buildOpts(letters[pos],letters.filter((_,i)=>i!==pos).slice(0,3));
+   return{t:`Suite : ${letters.join(', ')}\n\nLettre en ${pos+1}${pos===0?'ère':'ème'} position ?`,opts,a,e:`Position ${pos+1} = ${letters[pos]}.`};},
+ ()=>{const rapaces=shuffle(ANIMALS_RAPACES).slice(0,4);const intrus=pick(ANIMALS_INTRUS);const all=shuffle([...rapaces,intrus]);
+   const{opts,a}=buildOpts(intrus,rapaces);
+   return{t:`Intrus parmi : ${all.join(' – ')}`,opts,a,e:`${intrus} n'est pas un rapace, contrairement aux autres.`};},
+ ()=>{const codes={};PHONETIC.slice(0,5).forEach((w,i)=>codes[w]=i+1);const pair=shuffle(Object.keys(codes)).slice(0,2);
+   const sum=codes[pair[0]]+codes[pair[1]];
+   const{opts,a}=buildOpts(String(sum),[String(sum+1),String(sum-1),String(sum+2)]);
+   const codeStr=Object.entries(codes).map(([k,v])=>`${k}=${v}`).join(', ');
+   return{t:`${codeStr}\n${pair[0]} + ${pair[1]} = ?`,opts,a,e:`${pair[0]}=${codes[pair[0]]}, ${pair[1]}=${codes[pair[1]]}. Somme=${sum}.`};},
+ ()=>{const seq=randDigits(6);const phrase=`Combien de chiffres pairs dans : ${seq.join('-')} ?`;const evens=seq.filter(d=>d%2===0).length;
+   const{opts,a}=buildOpts(String(evens),[String(evens+1),String(Math.max(0,evens-1)),String(evens+2)]);
+   return{t:phrase,opts,a,e:`Chiffres pairs : ${seq.filter(d=>d%2===0).join(', ')||'aucun'}. Total=${evens}.`};},
+];
+const GEN_MEMOIRE_DIFFICILE=[
+ ()=>{const pairs=Array.from({length:5},()=>randLetters(1)[0]+rnd(2,9));const sorted=[...pairs].sort((x,y)=>parseInt(x[1])-parseInt(y[1]));const pos=rnd(0,4);
+   const{opts,a}=buildOpts(sorted[pos],pairs.filter(p=>p!==sorted[pos]).slice(0,3));
+   return{t:`${pairs.join('-')}\n\nOrdre croissant par chiffre : ${pos+1}${pos===0?'ère':'ème'} paire ?`,opts,a,e:`Ordre trié : ${sorted.join(',')}. ${pos+1}ème=${sorted[pos]}.`};},
+ ()=>{const base=randDigits(6);const modPos=rnd(0,5);let mod=[...base];mod[modPos]=(base[modPos]+pick([1,2,3,-1,-2]))%10;if(mod[modPos]<0)mod[modPos]+=10;
+   const{opts,a}=buildOpts(`Position ${modPos+1}`,[`Position ${(modPos+1)%6+1}`,`Position ${(modPos+2)%6+1}`,`Position ${(modPos+3)%6+1}`]);
+   return{t:`L1 : ${base.join('–')}\nL2 : ${mod.join('–')}\nQuelle position diffère ?`,opts,a,e:`Position ${modPos+1} : ${base[modPos]} vs ${mod[modPos]}.`};},
+ ()=>{const codes={};PHONETIC.slice(0,5).forEach((w,i)=>codes[w]=i+1);const triple=shuffle(Object.keys(codes)).slice(0,3);
+   const correct=triple.map(w=>codes[w]).join('-');
+   const{opts,a}=buildOpts(correct,[triple.map(w=>codes[w]+1).join('-'),[...triple.map(w=>codes[w])].reverse().join('-'),triple.map(w=>codes[w]-1).join('-')]);
+   const codeStr=Object.entries(codes).map(([k,v])=>`${k}=${v}`).join(', ');
+   return{t:`${codeStr}\nCode ${triple.join('-')} = ?`,opts,a,e:`${triple.map(w=>w+'='+codes[w]).join(', ')} → ${correct}.`};},
+ ()=>{const seq=randDigits(9);const evenPos=[1,3,5,7];const sum=evenPos.reduce((s,i)=>s+seq[i],0);
+   const{opts,a}=buildOpts(String(sum),[String(sum+2),String(sum-3),String(sum+5)]);
+   return{t:`Séquence : ${seq.join('-')}\nSomme des éléments en positions paires (2,4,6,8) ?`,opts,a,e:`Pos2=${seq[1]}, pos4=${seq[3]}, pos6=${seq[5]}, pos8=${seq[7]} → somme=${sum}.`};},
+];
+
+// ═══════════════════════════════════════════════════════════════════
+//  GÉNÉRATEURS PARAMÉTRIQUES — INSTRUMENTS (infinis)
+// ═══════════════════════════════════════════════════════════════════
+const GEN_INSTRUMENT_FACILE=[
+ ()=>{const alt=rnd(5,40)*100;
+   const{opts,a}=buildOpts(`${alt} ft AMSL`,[`${alt} ft AGL`,`${alt} ft ASFC`,`FL${Math.round(alt/100)}`]);
+   return{t:`Altimètre calé QNH indique ${alt} ft. L'avion est à ?`,opts,a,e:`QNH calée = altitude AMSL.`};},
+ ()=>{const deg=rnd(10,45),dir=pick(['droite','gauche']);
+   const{opts,a}=buildOpts(`Virage ${dir} ${deg}°`,[`Virage ${dir==='droite'?'gauche':'droite'} ${deg}°`,`Cabré ${deg}°`,`Piqué ${deg}°`]);
+   return{t:`Horizon artificiel : ailes inclinées à ${dir} ${deg}°. L'avion est en ?`,opts,a,e:`Inclinaison ${dir} = virage ${dir}.`};},
+ ()=>{const v=rnd(2,20)*100,sign=pick(['+','-']);
+   const{opts,a}=buildOpts(sign==='+'?'Monte':'Descend',['Monte','Descend','Vol horizontal','Accélère'].filter(o=>o!==(sign==='+'?'Monte':'Descend')));
+   return{t:`VSI indique ${sign}${v} ft/min. L'avion ?`,opts,a,e:`VSI ${sign} = ${sign==='+'?'montée':'descente'}.`};},
+ ()=>{const deg=rnd(0,7)*45;const names={0:'Nord',45:'Nord-Est',90:'Est',135:'Sud-Est',180:'Sud',225:'Sud-Ouest',270:'Ouest',315:'Nord-Ouest'};
+   const{opts,a}=buildOpts(names[deg],Object.values(names).filter(n=>n!==names[deg]).sort(()=>Math.random()-.5).slice(0,3));
+   return{t:`Boussole indique ${deg.toString().padStart(3,'0')}°. Cap de l'avion ?`,opts,a,e:`${deg.toString().padStart(3,'0')}° = ${names[deg]}.`};},
+ ()=>{const pts=rnd(1,3),pos=pick(['au-dessus','en-dessous']);
+   const action=pos==='au-dessus'?'Piquer':'Cabrer';
+   const{opts,a}=buildOpts(action,['Cabrer','Piquer','Virer à droite','Maintenir'].filter(o=>o!==action));
+   return{t:`ILS : glide slope ${pts} point(s) ${pos}, LOC centré. Le pilote doit ?`,opts,a,e:`${pos==='au-dessus'?'Trop haut → piquer':'Trop bas → cabrer'} pour rejoindre l'axe.`};},
+ ()=>{const ias=rnd(120,280),tas=ias+rnd(10,40);
+   const{opts,a}=buildOpts('IAS (vitesse air indiquée)',['TAS (vitesse air vraie)','Vitesse sol','Vitesse verticale']);
+   return{t:`L'anémomètre affiche ${ias} kt sans correction d'altitude/température. Quelle vitesse indique-t-il directement ?`,opts,a,e:`L'anémomètre indique toujours l'IAS brute ; le TAS (${tas} kt) nécessite une correction.`};},
+ ()=>{const qnh=rnd(995,1030);const ref=1013;const diff=qnh-ref;
+   const correct=diff>0?'Au-dessus de la pression standard':diff<0?'En-dessous de la pression standard':'Égale à la pression standard';
+   const{opts,a}=buildOpts(correct,['Au-dessus de la pression standard','En-dessous de la pression standard','Égale à la pression standard'].filter(o=>o!==correct));
+   return{t:`QNH affiché : ${qnh} hPa. Par rapport à la pression standard (1013 hPa), cette pression est ?`,opts,a,e:`${qnh} ${diff>0?'>':diff<0?'<':'='} 1013 hPa.`};},
+ ()=>{const fuel=rnd(20,95);
+   const correct=fuel<25?'Critique — envisager un déroutement':fuel<50?'Faible — surveiller':'Normal';
+   const{opts,a}=buildOpts(correct,['Critique — envisager un déroutement','Faible — surveiller','Normal'].filter(o=>o!==correct));
+   return{t:`Jauge carburant indique ${fuel}%. Quel est le niveau d'alerte ?`,opts,a,e:`${fuel}% ${fuel<25?'est un niveau critique.':fuel<50?'est un niveau faible à surveiller.':'reste dans la normale.'}`};},
+];
+const GEN_INSTRUMENT_DIFFICILE=[
+ ()=>{const aerodrome=rnd(2,8)*100,alt=rnd(10,25)*100,agl=alt-aerodrome;
+   const{opts,a}=buildOpts(`${agl} ft`,[`${alt} ft`,`${alt+aerodrome} ft`,`${aerodrome} ft`]);
+   return{t:`Altimètre calé QFE, aérodrome à ${aerodrome} ft AMSL. Avion à ${alt} ft AMSL. Lecture ?`,opts,a,e:`QFE = hauteur AGL. ${alt}-${aerodrome}=${agl} ft.`};},
+ ()=>{const piq=rnd(3,25),roulis=pick(['droit','gauche']),deg=rnd(20,70);
+   const vMontee=pick([true,false]);
+   const correct=`${roulis==='droit'?'Droit':'Gauche'} en ${vMontee?'montée':'descente'}`;
+   const{opts,a}=buildOpts(correct,['Droit en montée','Droit en descente','Gauche en montée','Gauche en descente'].filter(o=>o!==correct));
+   return{t:`ADI : ${vMontee?'cabré':'piqué'} ${piq}°, roulis ${roulis} ${deg}°. Virage ?`,opts,a,e:`Roulis ${roulis}=virage ${roulis}. ${vMontee?'Cabré':'Piqué'}=${vMontee?'montée':'descente'}.`};},
+ ()=>{const n1=rnd(85,99),itt=rnd(780,865),lim=pick([870,880,890,900]),marge=lim-itt;
+   const correct=marge<=20?'Surveiller ITT / réduire':'Rien, marge confortable';
+   const{opts,a}=buildOpts(correct,['Rien, marge confortable','Surveiller ITT / réduire','Couper le moteur','Augmenter N2'].filter(o=>o!==correct));
+   return{t:`N1=${n1}%, ITT=${itt}°C (lim ${lim}°C). Que fait le pilote ?`,opts,a,e:`Marge=${marge}°C. ${marge<=20?'Marge faible → surveiller et réduire.':'Marge suffisante.'}`};},
+ ()=>{const cv=rnd(0,35)*10,varW=rnd(1,9),cm=(cv+varW)%360;
+   const{opts,a}=buildOpts(cm.toString().padStart(3,'0')+'°',[cv.toString().padStart(3,'0')+'°',((cv-varW+360)%360).toString().padStart(3,'0')+'°',((cm+5)%360).toString().padStart(3,'0')+'°']);
+   return{t:`Cap vrai ${cv.toString().padStart(3,'0')}°, variation ${varW}°W. Cap magnétique ?`,opts,a,e:`CM = CV + Var.Ouest = ${cv}+${varW}=${cm}°M.`};},
+ ()=>{const fl=rnd(50,410)/10*10;const flR=Math.round(fl/5)*5;
+   const{opts,a}=buildOpts(`≈${flR*100} ft AMSL si QNH≈1013`,[`${flR*100} ft AGL`,'Dépend du vent uniquement','Toujours exactement '+flR*100+' ft']);
+   return{t:`QNH 1013 hPa. FL${flR} correspond à ?`,opts,a,e:`FL = niveau pression base QNE (1013.25 hPa). Si QNH≈1013, FL${flR}≈${flR*100} ft AMSL.`};},
+ ()=>{const distNM=rnd(3,15),vsi=rnd(500,1200);const pente=3;const altPerte=Math.round(distNM*1852/1000*52.36);// approximation simple ft par NM pour pente 3°
+   const correct='Pente standard 3° ≈ 318 ft/NM';
+   const{opts,a}=buildOpts('Pente standard 3°',['Pente 2°','Pente 5°','Pente non standard']);
+   return{t:`Une approche ILS utilise une pente de descente de ${pente}°. Comment qualifie-t-on cette pente ?`,opts,a,e:`Une pente de 3° est la pente standard ILS (≈318 ft par NM parcouru).`};},
+ ()=>{const tas=rnd(180,320),wind=rnd(-40,40);const gs=tas+wind;
+   const{opts,a}=buildOpts(gs+' kt',[tas+' kt',(gs+wind)+' kt',(gs-10)+' kt']);
+   return{t:`TAS=${tas} kt, vent ${wind>=0?'arrière':'de face'} de ${Math.abs(wind)} kt (axe avion). Vitesse sol ?`,opts,a,e:`GS=TAS${wind>=0?'+':''}${wind}=${gs} kt.`};},
+];
+
+// Registre unifié des générateurs par catégorie/niveau
+const GENERATORS={
+  calcul:{facile:GEN_CALCUL_FACILE, difficile:GEN_CALCUL_DIFFICILE},
+  spatial:{facile:GEN_SPATIAL_FACILE, difficile:GEN_SPATIAL_DIFFICILE},
+  memoire:{facile:GEN_MEMOIRE_FACILE, difficile:GEN_MEMOIRE_DIFFICILE},
+  instrument:{facile:GEN_INSTRUMENT_FACILE, difficile:GEN_INSTRUMENT_DIFFICILE},
+};
+
+// Génère une question : pioche un générateur au hasard et l'exécute,
+// en évitant de répéter le même texte que les N dernières questions de la session.
+function genQuestion(catKey, diffKey, avoidList){
+  const pool=GENERATORS[catKey][diffKey];
+  let attempt=0, q=null;
+  while(attempt<15){
+    const fn=pick(pool);
+    q=fn();
+    if(q && !avoidList.includes(q.t)) break;
+    attempt++;
+  }
+  return q;
+}
+
 
 // ─── STATE ────────────────────────────────────────────────────────────
 let diff='facile', mode='static', cat='logique';
@@ -976,38 +1205,19 @@ function setDiff(d){
   renderGrid();
 }
 
-// ─── MODE ─────────────────────────────────────────────────────────────
-function setMode(m){
-  mode=m;
-  document.getElementById('tab-static').className='mode-tab'+(m==='static'?' active':'');
-  document.getElementById('tab-ai').className    ='mode-tab'+(m==='ai'    ?' active':'');
-  document.getElementById('ai-config').style.display=m==='ai'?'block':'none';
-  renderGrid();
-}
-
-// ─── KEY ──────────────────────────────────────────────────────────────
-function saveKey(v){try{localStorage.setItem('psk',v);}catch(e){} updateAiLed();}
-function getKey(){try{return localStorage.getItem('psk')||'';}catch(e){return '';}}
-function updateAiLed(){
-  const k=getKey(),led=document.getElementById('ai-led'),st=document.getElementById('ai-st');
-  if(!led)return;
-  const ok=k.startsWith('sk-ant-')||k.startsWith('sk-');
-  led.className='ai-led'+(ok?' ok':' warn');
-  st.textContent=ok?'Clé valide — génération en temps réel activée':'Clé non configurée';
-}
-
 // ─── HOME ─────────────────────────────────────────────────────────────
+const ALL_CATS=['logique','calcul','memoire','spatial','vocabulaire','instrument'];
+
 function renderGrid(){
   const g=document.getElementById('cat-grid');
-  const qCounts={logique:80,calcul:70,memoire:40,spatial:50,vocabulaire:60,instrument:50};
-  g.innerHTML=Object.entries(BANKS).map(([k,b])=>{
+  g.innerHTML=ALL_CATS.map(k=>{
     const cs=catStats[k], p=cs?Math.round(cs.ok/cs.tot*100):null;
     const col=CAT_COLORS[k], bg=CAT_BG[k], ico=CAT_ICONS[k];
-    const cnt=mode==='ai'?'∞':qCounts[k];
+    const cnt='∞'; // toutes les catégories sont désormais à génération illimitée
     const scoreHtml=p!=null?`<div class="cat-score-lbl" style="color:${p>=75?'#16a34a':p>=50?'#d97706':'#dc2626'}">${cs.ok}/${cs.tot} · ${p}%</div><div class="cat-score-bar"><div class="cat-score-fill" style="width:${p}%;background:${col}"></div></div>`:'';
     return `<div class="cat-card" onclick="startCat('${k}')">
       <div class="cat-icon-wrap" style="background:${bg};color:${col}">${ico}</div>
-      <div class="cat-name">${b.label}</div>
+      <div class="cat-name">${CAT_LABELS[k]}</div>
       <div class="cat-desc">${CAT_DESCS[k]}</div>
       ${scoreHtml}
       <div class="cat-footer">
@@ -1062,97 +1272,75 @@ function goHome(){
 }
 
 function startRandom(){
-  const cats=Object.keys(BANKS);
-  startCat(cats[Math.floor(Math.random()*cats.length)]);
+  startCat(pick(ALL_CATS));
 }
 function retryLast(){startCat(lastCat);}
 
 // ─── START CAT ────────────────────────────────────────────────────────
+// Toutes les catégories sont désormais "infinies" : générateur paramétrique
+// pour calcul/spatial/mémoire/instrument, pioche aléatoire sans-remise
+// dans la banque élargie pour logique/vocabulaire (avec mélange à chaque session).
 function startCat(k){
   lastCat=k; cat=k;
   const col=CAT_COLORS[k];
   document.getElementById('q-cat-lbl').textContent=k.toUpperCase();
   document.getElementById('q-cat-lbl').style.color=col;
-  document.getElementById('q-mod-title').textContent=BANKS[k].label;
-  quizRes=[];qIdx=0;totalElapsed=0;
+  document.getElementById('q-mod-title').textContent=CAT_LABELS[k];
+  quizRes=[]; qIdx=0; totalElapsed=0; prevQ=[];
   show('quiz');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.querySelectorAll('.bnav-item').forEach(n=>n.classList.remove('active'));
-  if(mode==='ai'){questions=[];fetchAiQ();}
-  else{questions=[...BANKS[k][diff]].sort(()=>Math.random()-.5);renderQ();}
+
+  if(!CAT_IS_GEN[k]){
+    // Banque statique : on mélange tout le pool dispo pour ce niveau,
+    // pour ne jamais revoir le même ordre, et on boucle si on dépasse la taille du pool.
+    staticPool=[...BANKS[k][diff]].sort(()=>Math.random()-.5);
+    staticIdx=0;
+  }
+  renderQ();
 }
 
-// ─── AI ───────────────────────────────────────────────────────────────
-function buildPrompt(k,d,prev){
-  const avoid=prev.length?`\nÉvite ces sujets : ${prev.map(q=>`"${q}"`).join(', ')}.`:'';
-  const lvl=d==='facile'?'sous-officier':'pilote de chasse classe 1';
-  const specs={
-    logique:`Suite numérique/alphanumérique, analogie logique, syllogisme. Niveau ${lvl}.`,
-    calcul:`Calcul contexte vol (distance/temps/vitesse, %, conversion ft/NM/kt). Niveau ${lvl}.`,
-    memoire:`Séquence à mémoriser puis question, intrus, comptage. Niveau ${lvl}.`,
-    spatial:`Rotation de cap, rotation mentale, développement de cube. Niveau ${lvl}.`,
-    vocabulaire:`Synonyme, antonyme, définition, analogie verbale. Niveau ${lvl}.`,
-    instrument:`Lecture altimètre/ADI/VSI/ILS/RMI. Niveau ${lvl}.`
-  };
-  return `Tu es expert des tests psychotechniques Armée de l'Air française.\n${specs[k]}${avoid}\n\nGénère 1 QCM à 4 options, une seule réponse correcte.\nRéponds UNIQUEMENT en JSON valide sans texte ni markdown :\n{"question":"texte","visuel":"encadré ou vide","options":["A","B","C","D"],"reponse":0,"explication":"explication"}`;
-}
+const CAT_LABELS={logique:'Logique',calcul:'Calcul',memoire:'Mémoire',spatial:'Spatial',vocabulaire:'Vocabulaire',instrument:'Instruments'};
+let staticPool=[], staticIdx=0;
 
-async function fetchAiQ(){
-  aiLoading=true;
-  document.getElementById('skeleton').style.display='block';
-  document.getElementById('q-card').style.display='none';
-  document.getElementById('btn-next').style.display='none';
-  clearInterval(timerInt);
-  const key=getKey();
-  if(!(key.startsWith('sk-ant-')||key.startsWith('sk-'))){aiLoading=false;fallback();return;}
-  try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,
-        messages:[{role:'user',content:buildPrompt(cat,diff,prevQ.slice(-6))}]})
-    });
-    const d=await r.json();
-    const raw=d.content?.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
-    const q=JSON.parse(raw);
-    prevQ.push((q.question||'').substring(0,60));
-    aiLoading=false;
-    document.getElementById('skeleton').style.display='none';
-    document.getElementById('q-card').style.display='block';
-    renderQData(q,true);
-  }catch(e){aiLoading=false;fallback();}
-}
-
-function fallback(){
-  const pool=[...BANKS[cat][diff]].sort(()=>Math.random()-.5);
-  const q=pool[Math.floor(Math.random()*pool.length)];
-  document.getElementById('skeleton').style.display='none';
-  document.getElementById('q-card').style.display='block';
-  renderQData({question:q.t,visuel:q.v||'',options:q.opts,reponse:q.a,explication:q.e},false);
+// ─── OBTENIR LA PROCHAINE QUESTION (généré ou banque) ──────────────────
+function getNextQuestion(){
+  if(CAT_IS_GEN[cat]){
+    const q=genQuestion(cat, diff, prevQ.slice(-8));
+    prevQ.push(q.t);
+    return {question:q.t, visuel:q.v||'', options:q.opts, reponse:q.a, explication:q.e};
+  } else {
+    // Banque statique : boucle et remélange si on a épuisé le pool
+    if(staticIdx>=staticPool.length){
+      staticPool=[...BANKS[cat][diff]].sort(()=>Math.random()-.5);
+      staticIdx=0;
+    }
+    const raw=staticPool[staticIdx++];
+    return {question:raw.t, visuel:raw.v||'', options:raw.opts, reponse:raw.a, explication:raw.e};
+  }
 }
 
 // ─── RENDER Q ─────────────────────────────────────────────────────────
 function renderQ(){
-  if(qIdx>=questions.length){showResults();return;}
-  const raw=questions[qIdx];
-  renderQData(raw.question?raw:{question:raw.t,visuel:raw.v||'',options:raw.opts,reponse:raw.a,explication:raw.e},false);
+  const q=getNextQuestion();
+  renderQData(q);
 }
 
-function renderQData(q,isAI){
+function renderQData(q){
   answered=false;
-  const tot=mode==='ai'?(qIdx+1):questions.length;
-  const pct=Math.round(qIdx/Math.max(tot,1)*100);
+  // En génération infinie il n'y a pas de "total" fixe : on affiche un compteur continu
+  const pct=Math.min(100, Math.round((qIdx%10)/10*100));
   document.getElementById('q-prog').style.width=pct+'%';
-  document.getElementById('q-prog-lbl').textContent='Q '+(qIdx+1)+(mode!=='ai'?' / '+questions.length:'');
+  document.getElementById('q-prog-lbl').textContent='Q '+(qIdx+1);
   document.getElementById('q-num').textContent=qIdx+1;
-  document.getElementById('q-tot').textContent=mode==='ai'?'∞':questions.length;
+  document.getElementById('q-tot').textContent='∞';
 
   const dd=diff==='facile';
   const db=document.getElementById('q-diff-badge');
   db.textContent=dd?'SOUS-OFFICIER':'PILOTE';
   db.className='q-badge '+(dd?'q-badge-diff-easy':'q-badge-diff-hard');
   document.getElementById('q-cat-badge').textContent=cat.toUpperCase();
-  document.getElementById('q-ai-badge').style.display=isAI?'flex':'none';
+  document.getElementById('q-ai-badge').style.display='none';
 
   document.getElementById('q-text').innerHTML=(q.question||'').replace(/\n/g,'<br>');
 
@@ -1161,7 +1349,7 @@ function renderQData(q,isAI){
   else vis.classList.add('hidden');
 
   document.getElementById('q-opts').innerHTML=(q.options||[]).map((o,i)=>`
-    <div class="opt" id="opt-${i}" onclick="pick(${i})"
+    <div class="opt" id="opt-${i}" onclick="selectOpt(${i})"
       onmouseenter="if(!answered)this.classList.add('sel')"
       onmouseleave="if(!answered)this.classList.remove('sel')">
       <div class="opt-key">${String.fromCharCode(65+i)}</div>
@@ -1190,7 +1378,7 @@ function renderQData(q,isAI){
       }
     }
   },500);
-  if(mode==='ai') questions[qIdx]={...q};
+  currentQ=q;
 }
 
 function updateTimerDisp(){
@@ -1204,12 +1392,13 @@ function updateTimerDisp(){
   arc.style.stroke=col; n.style.color=col;
 }
 
-function pick(i){
+let currentQ=null;
+
+function selectOpt(i){
   if(answered)return;
   clearInterval(timerInt); answered=true;
   const elapsed=(Date.now()-startT)/1000; totalElapsed+=elapsed;
-  const rawQ=questions[qIdx];
-  const q=rawQ.question?rawQ:{question:rawQ.t,options:rawQ.opts,reponse:rawQ.a,explication:rawQ.e,visuel:rawQ.v||''};
+  const q=currentQ;
   const ok=i===q.reponse;
   session.tot++; if(ok){session.ok++;session.streak++;session.best=Math.max(session.best,session.streak);}else session.streak=0;
   const cs=catStats[cat]||{ok:0,tot:0};
@@ -1252,10 +1441,15 @@ function updateStreakChip(){
   c.style.display=session.streak>1?'inline-flex':'none';
 }
 
+// Nombre de questions avant proposition d'un bilan (palier configurable)
+const SESSION_BATCH=10;
 function nextQ(){
   qIdx++;
-  if(mode==='ai'){document.getElementById('q-card').style.display='none';fetchAiQ();}
-  else{if(qIdx>=questions.length)showResults();else renderQ();}
+  if(qIdx>0 && qIdx % SESSION_BATCH === 0){
+    showResults();
+  } else {
+    renderQ();
+  }
 }
 
 function showResults(){
@@ -1337,11 +1531,9 @@ if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.se
 
 // ─── INIT ─────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded',()=>{
-  const ki=document.getElementById('ai-key');
-  if(ki) ki.value=getKey();
-  updateAiLed(); renderGrid();
+  renderGrid();
   const hash=location.hash.replace('#','');
-  if(BANKS[hash]) startCat(hash);
+  if(ALL_CATS.includes(hash)) startCat(hash);
 });
 </script>
 </body>
